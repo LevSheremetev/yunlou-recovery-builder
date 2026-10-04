@@ -47,12 +47,8 @@ jobs:
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
         
-        # Создаем заглушку для отсутствующих вендорских файлов
-        mkdir -p vendor/xiaomi/yunluo
-        touch vendor/xiaomi/yunluo/yunluo-vendor.mk
-        
-        # Смягчаем требования к наличию файлов вендора в конфигах
-        find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product, vendor\/xiaomi\/yunluo\/yunluo-vendor.mk)/$(call inherit-product-if-exists, vendor\/xiaomi\/yunluo\/yunluo-vendor.mk)/g' {} +
+        # Делаем все вызовы inherit-product в дереве устройства опциональными
+        find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
 
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
