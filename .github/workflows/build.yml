@@ -5,12 +5,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Free Disk Space
       uses: jlumbroso/free-disk-space@main
       with:
-        tool-cache: true
+        tool-cache: false
         android: true
         dotnet: true
         haskell: true
@@ -19,7 +19,7 @@ jobs:
     - name: Initialize Build Environment
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses5-dev lib32z1-dev libelf-dev libgl1-mesa-dev libxml2-utils xsltproc zip libssl-dev python3
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libgl1-mesa-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3
 
     - name: Install Repo Tool
       run: |
