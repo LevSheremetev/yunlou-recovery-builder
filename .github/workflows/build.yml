@@ -46,20 +46,16 @@ jobs:
       run: |
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
+        
+        # Создаем заглушку для отсутствующих вендорских файлов
+        mkdir -p vendor/xiaomi/yunluo
+        touch vendor/xiaomi/yunluo/yunluo-vendor.mk
+        
+        # Смягчаем требования к наличию файлов вендора в конфигах
+        find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product, vendor\/xiaomi\/yunluo\/yunluo-vendor.mk)/$(call inherit-product-if-exists, vendor\/xiaomi\/yunluo\/yunluo-vendor.mk)/g' {} +
+
         source build/envsetup.sh
-        
-        # Автоматический поиск имени конфигурации устройства
-        TARGET=""
-        if [ -f device/xiaomi/yunluo/AndroidProducts.mk ]; then
-          TARGET=$(grep -oP '(?<=:\s|\=\s|\/)[a-zA-Z0-9_]+(?=\.mk)' device/xiaomi/yunluo/AndroidProducts.mk | head -n 1)
-        fi
-        if [ -z "$TARGET" ]; then
-          TARGET_FILE=$(find device/xiaomi/yunluo -name "*yunluo*.mk" ! -name "AndroidProducts.mk" | head -n 1)
-          TARGET=$(basename "$TARGET_FILE" .mk)
-        fi
-        
-        echo "Found target: $TARGET"
-        lunch ${TARGET}-eng || lunch ${TARGET}-userdebug
+        lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
         mka recoveryimage -j$(nproc --all)
 
     - name: Upload Artifacts
