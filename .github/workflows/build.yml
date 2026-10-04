@@ -47,7 +47,19 @@ jobs:
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
         source build/envsetup.sh
-        lunch omni_yunluo-eng || lunch twrp_yunluo-eng || lunch android_yunluo-eng
+        
+        # Автоматический поиск имени конфигурации устройства
+        TARGET=""
+        if [ -f device/xiaomi/yunluo/AndroidProducts.mk ]; then
+          TARGET=$(grep -oP '(?<=:\s|\=\s|\/)[a-zA-Z0-9_]+(?=\.mk)' device/xiaomi/yunluo/AndroidProducts.mk | head -n 1)
+        fi
+        if [ -z "$TARGET" ]; then
+          TARGET_FILE=$(find device/xiaomi/yunluo -name "*yunluo*.mk" ! -name "AndroidProducts.mk" | head -n 1)
+          TARGET=$(basename "$TARGET_FILE" .mk)
+        fi
+        
+        echo "Found target: $TARGET"
+        lunch ${TARGET}-eng || lunch ${TARGET}-userdebug
         mka recoveryimage -j$(nproc --all)
 
     - name: Upload Artifacts
