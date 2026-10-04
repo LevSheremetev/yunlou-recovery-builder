@@ -45,8 +45,9 @@ jobs:
     - name: Compile TWRP
       run: |
         cd twrp_12.1
+        export ALLOW_MISSING_DEPENDENCIES=true
         source build/envsetup.sh
-        lunch twrp_yunluo-eng
+        lunch omni_yunluo-eng || lunch twrp_yunluo-eng || lunch android_yunluo-eng
         mka recoveryimage -j$(nproc --all)
 
     - name: Upload Artifacts
@@ -56,3 +57,4 @@ jobs:
         path: |
           twrp_12.1/out/target/product/yunluo/recovery.img
           twrp_12.1/out/target/product/yunluo/vendor_boot.img
+          twrp_12.1/out/target/product/yunluo/*.img
