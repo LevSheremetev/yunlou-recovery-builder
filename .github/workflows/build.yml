@@ -50,10 +50,11 @@ jobs:
         # 1. Опциональные вызовы в конфигурациях продуктов
         find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
 
-        # 2. Исправление для MediaTek SEPolicy
+        # 2. Исправление для жестких include (MediaTek SEPolicy и BoardConfigVendor)
         mkdir -p device/mediatek/sepolicy_vndr
         touch device/mediatek/sepolicy_vndr/SEPolicy.mk
         sed -i 's/^include device\/mediatek/-include device\/mediatek/g' device/xiaomi/yunluo/BoardConfig.mk
+        sed -i 's/^include vendor\/xiaomi/-include vendor\/xiaomi/g' device/xiaomi/yunluo/BoardConfig.mk
 
         # 3. Заглушки для файлов модулей ядра
         mkdir -p device/xiaomi/yunluo-kernel
