@@ -47,35 +47,35 @@ jobs:
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
         
-        # 1. Опциональные вызовы в конфигурациях продуктов
         find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
 
-        # 2. Исправление для жестких include
         mkdir -p device/mediatek/sepolicy_vndr
         touch device/mediatek/sepolicy_vndr/SEPolicy.mk
         sed -i 's/^include device\/mediatek/-include device\/mediatek/g' device/xiaomi/yunluo/BoardConfig.mk
         sed -i 's/^include vendor\/xiaomi/-include vendor\/xiaomi/g' device/xiaomi/yunluo/BoardConfig.mk
 
-        # 3. Заглушки для файлов модулей ядра
         mkdir -p device/xiaomi/yunluo-kernel
         touch device/xiaomi/yunluo-kernel/modules.load.vendor_ramdisk
         touch device/xiaomi/yunluo-kernel/modules.load.recovery
         touch device/xiaomi/yunluo-kernel/modules.load
 
-        # 4. Установка темы и разрешения TWRP
         echo "TW_THEME := portrait_hdpi" >> device/xiaomi/yunluo/BoardConfig.mk
         echo "TARGET_SCREEN_WIDTH := 1200" >> device/xiaomi/yunluo/BoardConfig.mk
         echo "TARGET_SCREEN_HEIGHT := 2000" >> device/xiaomi/yunluo/BoardConfig.mk
 
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
-        mka recoveryimage -j$(nproc --all)
+        
+        # Пробуем собрать и recovery, и boot
+        mka recoveryimage bootimage -j$(nproc --all)
+
+    - name: Find Compiled Images
+      run: |
+        echo "Поиск всех созданных .img файлов:"
+        find twrp_12.1/out/target/product/ -name "*.img"
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo
-        path: |
-          twrp_12.1/out/target/product/yunluo/recovery.img
-          twrp_12.1/out/target/product/yunluo/vendor_boot.img
-          twrp_12.1/out/target/product/yunluo/*.img
+        name: TWRP-Yunluo-Images
+        path: twrp_12.1/out/target/product/**/*.img
