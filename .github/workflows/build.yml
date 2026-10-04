@@ -47,8 +47,19 @@ jobs:
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
         
-        # Делаем все вызовы inherit-product в дереве устройства опциональными
+        # 1. Опциональные вызовы в конфигурациях продуктов
         find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
+
+        # 2. Исправление для MediaTek SEPolicy
+        mkdir -p device/mediatek/sepolicy_vndr
+        touch device/mediatek/sepolicy_vndr/SEPolicy.mk
+        sed -i 's/^include device\/mediatek/-include device\/mediatek/g' device/xiaomi/yunluo/BoardConfig.mk
+
+        # 3. Заглушки для файлов модулей ядра
+        mkdir -p device/xiaomi/yunluo-kernel
+        touch device/xiaomi/yunluo-kernel/modules.load.vendor_ramdisk
+        touch device/xiaomi/yunluo-kernel/modules.load.recovery
+        touch device/xiaomi/yunluo-kernel/modules.load
 
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
