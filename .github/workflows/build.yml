@@ -1,0 +1,58 @@
+name: Build OrangeFox Recovery for Yunluo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Free Disk Space
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+
+    - name: Initialize Build Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses5-dev lib32z1-dev libelf-dev libgl1-mesa-dev libxml2-utils xsltproc zip libssl-dev python3
+
+    - name: Install Repo Tool
+      run: |
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        echo "$HOME/bin" >> $GITHUB_PATH
+
+    - name: Sync OrangeFox Source
+      run: |
+        mkdir fox_12.1 && cd fox_12.1
+        git config --global user.name "Builder"
+        git config --global user.email "builder@github.com"
+        repo init -u https://gitlab.com/OrangeFox/Manifest.git -b fox_12.1 --depth=1
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle
+
+    - name: Clone Device Tree
+      run: |
+        cd fox_12.1
+        git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
+
+    - name: Compile Recovery
+      run: |
+        cd fox_12.1
+        source build/envsetup.sh
+        lunch omni_yunluo-eng
+        mka recoveryimage -j$(nproc --all)
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: OrangeFox-Yunluo
+        path: |
+          fox_12.1/out/target/product/yunluo/OrangeFox*.img
+          fox_12.1/out/target/product/yunluo/OrangeFox*.zip
+          fox_12.1/out/target/product/yunluo/vendor_boot.img
