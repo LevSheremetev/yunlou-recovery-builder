@@ -37,10 +37,13 @@ jobs:
         repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
         repo sync -c -j4 --force-sync --no-clone-bundle --no-tags
 
-    - name: Clone Device Tree
+    - name: Clone Device Tree and Prebuilt Kernel
       run: |
         cd twrp_12.1
+        # Клонируем дерево устройства
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
+        # Клонируем готовые файлы ядра (prebuilts), чтобы не собирать его с нуля
+        git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
     - name: Compile TWRP
       run: |
@@ -54,11 +57,6 @@ jobs:
         sed -i 's/^include device\/mediatek/-include device\/mediatek/g' device/xiaomi/yunluo/BoardConfig.mk
         sed -i 's/^include vendor\/xiaomi/-include vendor\/xiaomi/g' device/xiaomi/yunluo/BoardConfig.mk
 
-        mkdir -p device/xiaomi/yunluo-kernel
-        touch device/xiaomi/yunluo-kernel/modules.load.vendor_ramdisk
-        touch device/xiaomi/yunluo-kernel/modules.load.recovery
-        touch device/xiaomi/yunluo-kernel/modules.load
-
         echo "TW_THEME := portrait_hdpi" >> device/xiaomi/yunluo/BoardConfig.mk
         echo "TARGET_SCREEN_WIDTH := 1200" >> device/xiaomi/yunluo/BoardConfig.mk
         echo "TARGET_SCREEN_HEIGHT := 2000" >> device/xiaomi/yunluo/BoardConfig.mk
@@ -66,12 +64,11 @@ jobs:
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
         
-        # Пробуем собрать и recovery, и boot
-        mka recoveryimage bootimage -j$(nproc --all)
+        mka recoveryimage -j$(nproc --all)
 
     - name: Find Compiled Images
       run: |
-        echo "Поиск всех созданных .img файлов:"
+        echo "Поиск созданных .img файлов:"
         find twrp_12.1/out/target/product/ -name "*.img"
 
     - name: Upload Artifacts
