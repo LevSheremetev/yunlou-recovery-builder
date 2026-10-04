@@ -1,4 +1,4 @@
-name: Build OrangeFox Recovery for Yunluo
+name: Build TWRP Recovery for Yunluo
 
 on:
   workflow_dispatch:
@@ -28,32 +28,31 @@ jobs:
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
 
-    - name: Sync OrangeFox Source
+    - name: Sync TWRP Source
       run: |
-        mkdir fox_12.1 && cd fox_12.1
+        mkdir twrp_12.1 && cd twrp_12.1
         git config --global user.name "Builder"
         git config --global user.email "builder@github.com"
         git config --global color.ui false
-        repo init -u https://gitlab.com/OrangeFox/Manifest.git -b fox_12.1 --depth=1
+        repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
         repo sync -c -j4 --force-sync --no-clone-bundle --no-tags
 
     - name: Clone Device Tree
       run: |
-        cd fox_12.1
+        cd twrp_12.1
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
 
-    - name: Compile Recovery
+    - name: Compile TWRP
       run: |
-        cd fox_12.1
+        cd twrp_12.1
         source build/envsetup.sh
-        lunch omni_yunluo-eng
+        lunch twrp_yunluo-eng
         mka recoveryimage -j$(nproc --all)
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: OrangeFox-Yunluo
+        name: TWRP-Yunluo
         path: |
-          fox_12.1/out/target/product/yunluo/OrangeFox*.img
-          fox_12.1/out/target/product/yunluo/OrangeFox*.zip
-          fox_12.1/out/target/product/yunluo/vendor_boot.img
+          twrp_12.1/out/target/product/yunluo/recovery.img
+          twrp_12.1/out/target/product/yunluo/vendor_boot.img
