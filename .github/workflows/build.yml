@@ -43,7 +43,7 @@ jobs:
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
-    - name: Patch Rotation, ADB & Touch Drivers
+    - name: Inject Force-Load Modules Script & Board Configs
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
         
@@ -57,7 +57,7 @@ jobs:
         sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
         sed -i '/TW_ROTATION/d' BoardConfig.mk
 
-        # Конфигурация разворота экрана, графики, USB и сенсора
+        # Конфигурация разворота, графики и модулей
         cat << "CFG" >> BoardConfig.mk
 
         # Screen Orientation & Working Graphics
@@ -70,7 +70,7 @@ jobs:
         TW_GRAPHICS_FORCE_USE_LINELENGTH := true
         RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # Force Loading Touchscreen Kernel Modules
+        # Force Loading Modules
         TW_LOAD_VENDOR_BOOT_MODULES := true
         BOARD_VENDOR_BOOT_RECOVERY_LOAD_MODULES := true
         TW_SUPPORT_INPUT_AIDL := true
@@ -82,6 +82,14 @@ jobs:
         ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.config=adb,mtp
         ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
         CFG
+
+        # Внедрение скрипта автозагрузки драйверов ядра (.ko) при старте recovery
+        mkdir -p recovery/root
+        cat << "RC" >> recovery/root/init.recovery.yunluo.rc
+        on init
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "for mod in /lib/modules/*.ko /vendor/lib/modules/*.ko; do insmod \$mod; done"
+            exec u:r:modprobe:s0 -- /system/bin/modprobe -a -d /lib/modules goodix_ts fts_touch focaltech_touch tpd mtk_tpd
+        RC
 
     - name: Compile TWRP
       run: |
@@ -103,5 +111,5 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-Rotation-Touch-Fix
+        name: TWRP-Yunluo-ForceModules
         path: twrp_12.1/out/target/product/yunluo/*.img
