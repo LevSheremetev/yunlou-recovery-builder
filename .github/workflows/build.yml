@@ -22,7 +22,7 @@ jobs:
     - name: Initialize Build Environment & Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4 unzip
 
     - name: Install Repo Tool & Magiskboot
       run: |
@@ -31,7 +31,10 @@ jobs:
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
 
-        wget -q https://github.com/HuskyDG/magisk-files/raw/main/magiskboot -O ~/bin/magiskboot
+        # Скачивание official Magisk v27.0 и извлечение x86_64 magiskboot
+        curl -sSL https://github.com/topjohnwy/Magisk/releases/download/v27.0/Magisk-v27.0.apk -o /tmp/magisk.apk
+        unzip -j /tmp/magisk.apk "lib/x86_64/libmagiskboot.so" -d ~/bin/
+        mv ~/bin/libmagiskboot.so ~/bin/magiskboot
         chmod +x ~/bin/magiskboot
 
     - name: Sync TWRP Source
@@ -99,9 +102,11 @@ jobs:
         TW_GRAPHICS_FORCE_USE_LINELENGTH := true
         RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # Permissive SELinux
+        # Permissive SELinux & Bypass Policy Checks
         BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
         SELINUX_IGNORE_NEVERALLOWS := true
+        BOARD_SEPOLICY_DIRS :=
+        SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS :=
 
         # Modules & Input Setup
         TW_LOAD_VENDOR_BOOT_MODULES := true
