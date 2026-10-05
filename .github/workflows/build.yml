@@ -43,22 +43,25 @@ jobs:
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
-    - name: Hardcode MTK Graphics & Force ADB
+    - name: Patch Rotation, ADB & Touch Drivers
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
         
         # Очистка SEPolicy
         rm -rf sepolicy
 
-        # Чистим старые конфликтующие параметры
+        # Чистим старые переменные
         sed -i '/TW_THEME/d' BoardConfig.mk
         sed -i '/TARGET_SCREEN/d' BoardConfig.mk
         sed -i '/TARGET_RECOVERY_PIXEL_FORMAT/d' BoardConfig.mk
+        sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
+        sed -i '/TW_ROTATION/d' BoardConfig.mk
 
-        # Принудительная правка графического буфера MTK и отладки ADB
+        # Конфигурация разворота экрана, графики, USB и сенсора
         cat << "CFG" >> BoardConfig.mk
 
-        # Graphics & Font Render Fix for MTK Framebuffer
+        # Screen Orientation & Working Graphics
+        TW_ROTATION := 180
         TW_THEME := portrait_hdpi
         TARGET_SCREEN_WIDTH := 1200
         TARGET_SCREEN_HEIGHT := 2000
@@ -67,17 +70,17 @@ jobs:
         TW_GRAPHICS_FORCE_USE_LINELENGTH := true
         RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # Touch & Modules
-        TW_SUPPORT_INPUT_AIDL := true
+        # Force Loading Touchscreen Kernel Modules
         TW_LOAD_VENDOR_BOOT_MODULES := true
-        TW_USE_TOOLBOX := true
+        BOARD_VENDOR_BOOT_RECOVERY_LOAD_MODULES := true
+        TW_SUPPORT_INPUT_AIDL := true
 
-        # Force ADB Debug Mode
-        TW_EXCLUDE_DEFAULT_USB_INIT := true
+        # USB Gadget & ADB Properties (Xiaomi MTK)
+        TW_EXCLUDE_DEFAULT_USB_INIT := false
         ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
         ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
-        ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.config=adb
-        SELINUX_IGNORE_NEVERALLOWS := true
+        ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.config=adb,mtp
+        ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
         CFG
 
     - name: Compile TWRP
@@ -100,5 +103,5 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-MTKFix
+        name: TWRP-Yunluo-Rotation-Touch-Fix
         path: twrp_12.1/out/target/product/yunluo/*.img
