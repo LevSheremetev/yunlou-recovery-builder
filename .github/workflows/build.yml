@@ -31,10 +31,10 @@ jobs:
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
 
-        # Скачивание official Magisk v27.0 и извлечение x86_64 magiskboot
-        curl -sSL https://github.com/topjohnwy/Magisk/releases/download/v27.0/Magisk-v27.0.apk -o /tmp/magisk.apk
-        unzip -j /tmp/magisk.apk "lib/x86_64/libmagiskboot.so" -d ~/bin/
-        mv ~/bin/libmagiskboot.so ~/bin/magiskboot
+        # Скачивание официального Magisk v27.0 (topjohnwu) и извлечение x86_64 magiskboot
+        curl -sSLf https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk -o /tmp/magisk.apk
+        unzip -o /tmp/magisk.apk -d /tmp/magisk_extracted
+        cp $(find /tmp/magisk_extracted -name "libmagiskboot.so" | grep "x86_64") ~/bin/magiskboot
         chmod +x ~/bin/magiskboot
 
     - name: Sync TWRP Source
