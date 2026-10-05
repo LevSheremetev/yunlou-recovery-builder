@@ -16,10 +16,10 @@ jobs:
         haskell: true
         large-packages: true
 
-    - name: Initialize Build Environment
+    - name: Initialize Build Environment & Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libgl1-mesa-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libgl1-mesa-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4
 
     - name: Install Repo Tool
       run: |
@@ -37,30 +37,30 @@ jobs:
         repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
         repo sync -c -j4 --force-sync --no-clone-bundle --no-tags
 
-    - name: Clone Device Tree and Prebuilt Kernel
+    - name: Clone Device Tree
       run: |
         cd twrp_12.1
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
-    - name: Inject Force-Load Modules Script & Board Configs
+    - name: Extract Stock Vendor Modules & Configure Board
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
-        
-        # Очистка SEPolicy
+
+        # Очистка устаревших SEPolicy
         rm -rf sepolicy
 
-        # Чистим старые переменные
+        # Сброс старых флагов
         sed -i '/TW_THEME/d' BoardConfig.mk
         sed -i '/TARGET_SCREEN/d' BoardConfig.mk
         sed -i '/TARGET_RECOVERY_PIXEL_FORMAT/d' BoardConfig.mk
         sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
         sed -i '/TW_ROTATION/d' BoardConfig.mk
 
-        # Конфигурация разворота, графики и модулей
+        # Конфигурация графики и дисплея
         cat << "CFG" >> BoardConfig.mk
 
-        # Screen Orientation & Working Graphics
+        # Working Graphics Specs
         TW_ROTATION := 180
         TW_THEME := portrait_hdpi
         TARGET_SCREEN_WIDTH := 1200
@@ -70,12 +70,12 @@ jobs:
         TW_GRAPHICS_FORCE_USE_LINELENGTH := true
         RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # Force Loading Modules
+        # Vendor Modules Config
         TW_LOAD_VENDOR_BOOT_MODULES := true
         BOARD_VENDOR_BOOT_RECOVERY_LOAD_MODULES := true
         TW_SUPPORT_INPUT_AIDL := true
 
-        # USB Gadget & ADB Properties (Xiaomi MTK)
+        # ADB ConfigFS Properties
         TW_EXCLUDE_DEFAULT_USB_INIT := false
         ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
         ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
@@ -83,12 +83,25 @@ jobs:
         ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
         CFG
 
-        # Внедрение скрипта автозагрузки драйверов ядра (.ko) при старте recovery
-        mkdir -p recovery/root
-        cat << "RC" >> recovery/root/init.recovery.yunluo.rc
-        on init
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "for mod in /lib/modules/*.ko /vendor/lib/modules/*.ko; do insmod \$mod; done"
-            exec u:r:modprobe:s0 -- /system/bin/modprobe -a -d /lib/modules goodix_ts fts_touch focaltech_touch tpd mtk_tpd
+        # Выкачиваем и распаковываем оригинальные модули из вендора yunluo
+        mkdir -p recovery/root/vendor/lib/modules
+        mkdir -p recovery/root/lib/modules
+
+        cd ../../../
+        git clone --depth=1 https://github.com/xiaomi-mt6789-devs/android_vendor_xiaomi_yunluo vendor/xiaomi/yunluo || true
+
+        # Копируем найденные стоковые драйверы и модули ядра
+        find vendor/xiaomi/yunluo -name "*.ko" -exec cp {} twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules/ \; || true
+        find vendor/xiaomi/yunluo -name "*.ko" -exec cp {} twrp_12.1/device/xiaomi/yunluo/recovery/root/lib/modules/ \; || true
+
+        # Задаем жесткий автозапуск модулей в init.rc
+        cat << "RC" > twrp_12.1/device/xiaomi/yunluo/recovery/root/init.recovery.yunluo.rc
+        on fs
+            export PATH /system/bin:/vendor/bin
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "for m in /vendor/lib/modules/*.ko /lib/modules/*.ko; do insmod \$m; done"
+
+        on boot
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "for m in /vendor/lib/modules/*.ko /lib/modules/*.ko; do insmod \$m; done"
         RC
 
     - name: Compile TWRP
@@ -111,5 +124,5 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-ForceModules
+        name: TWRP-Yunluo-StockModules-Injected
         path: twrp_12.1/out/target/product/yunluo/*.img
