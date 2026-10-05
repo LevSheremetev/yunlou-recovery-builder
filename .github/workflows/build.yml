@@ -22,20 +22,25 @@ jobs:
     - name: Initialize Build Environment & Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4 unzip
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4 unzip zstd golang-go
 
-    - name: Install Repo Tool & Magiskboot
+    - name: Install Repo Tool, Magiskboot & unpack_bootimg
       run: |
         mkdir -p ~/bin
         curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
 
-        # Скачивание официального Magisk v27.0 (topjohnwu) и извлечение x86_64 magiskboot
+        # Magisk v27.0 magiskboot
         curl -sSLf https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk -o /tmp/magisk.apk
         unzip -o /tmp/magisk.apk -d /tmp/magisk_extracted
         cp $(find /tmp/magisk_extracted -name "libmagiskboot.so" | grep "x86_64") ~/bin/magiskboot
         chmod +x ~/bin/magiskboot
+
+        # unpack_bootimg (AOSP) — корректно обрабатывает vendor_boot v3/v4
+        git clone --depth=1 https://android.googlesource.com/platform/system/tools/mkbootimg /tmp/mkbootimg
+        cd /tmp/mkbootimg && go build -o ~/bin/unpack_bootimg ./unpack_bootimg
+        chmod +x ~/bin/unpack_bootimg
 
     - name: Sync TWRP Source
       run: |
@@ -54,42 +59,97 @@ jobs:
 
     - name: Extract Modules & Order from LineageOS 23 vendor_boot.img
       run: |
+        set -e
         mkdir -p /tmp/vendor_unpack
         cp vendor_boot.img /tmp/vendor_unpack/
         cd /tmp/vendor_unpack
-        
-        # Распаковываем vendor_boot
-        ~/bin/magiskboot unpack vendor_boot.img
-        mkdir -p ramdisk_out
-        cd ramdisk_out
-        ~/bin/magiskboot cpio ../ramdisk.cpio extract
-        
-        # Директории в TWRP ramdisk
+
+        echo "=== Step 1: unpack_bootimg ==="
+        ~/bin/unpack_bootimg --boot_img vendor_boot.img --out ./extracted
+        ls -la ./extracted
+
+        echo "=== Step 2: locate raw ramdisk ==="
+        RAMDISK_RAW=""
+        for f in ./extracted/vendor_ramdisk ./extracted/vendor_ramdisk00 ./extracted/ramdisk; do
+          if [ -f "$f" ]; then RAMDISK_RAW="$f"; break; fi
+        done
+        if [ -z "$RAMDISK_RAW" ]; then
+          echo "Trying magiskboot fallback unpack..."
+          ~/bin/magiskboot unpack -n vendor_boot.img || true
+          for f in vendor_ramdisk vendor_ramdisk00 ramdisk.cpio; do
+            if [ -f "$f" ]; then RAMDISK_RAW="$f"; break; fi
+          done
+        fi
+        echo "Using raw ramdisk: $RAMDISK_RAW"
+        file "$RAMDISK_RAW"
+
+        echo "=== Step 3: decompress ramdisk ==="
+        rm -f ramdisk.cpio
+        if file "$RAMDISK_RAW" | grep -qi "LZ4"; then
+          lz4 -d "$RAMDISK_RAW" ramdisk.cpio
+        elif file "$RAMDISK_RAW" | grep -qi "gzip"; then
+          gunzip -c "$RAMDISK_RAW" > ramdisk.cpio
+        elif file "$RAMDISK_RAW" | grep -qi "Zstandard"; then
+          zstd -d "$RAMDISK_RAW" -o ramdisk.cpio
+        elif file "$RAMDISK_RAW" | grep -qi "LZMA"; then
+          xz -d -c "$RAMDISK_RAW" > ramdisk.cpio
+        else
+          # возможно это уже cpio
+          cp "$RAMDISK_RAW" ramdisk.cpio
+        fi
+
+        # Проверяем magic
+        if ! head -c 6 ramdisk.cpio | grep -q "070701" && ! head -c 6 ramdisk.cpio | grep -q "070702"; then
+          echo "Not a plain cpio, trying magiskboot cpio decompress..."
+          ~/bin/magiskboot cpio ramdisk.cpio decompress ./ramdisk_raw.cpio || true
+          if [ -f ramdisk_raw.cpio ]; then
+            mv ramdisk_raw.cpio ramdisk.cpio
+          fi
+        fi
+        file ramdisk.cpio
+        head -c 16 ramdisk.cpio | xxd || true
+
+        echo "=== Step 4: extract cpio ==="
+        rm -rf ramdisk_root && mkdir -p ramdisk_root
+        cd ramdisk_root
+        if ! cpio -idmv < ../ramdisk.cpio 2>/tmp/cpio_err.log; then
+          echo "cpio failed, dumping log:"; cat /tmp/cpio_err.log || true
+          echo "Trying magiskboot cpio extract fallback..."
+          cd ..
+          ~/bin/magiskboot cpio ramdisk.cpio extract ./ramdisk_root_mb || true
+          if [ -d ramdisk_root_mb ]; then
+            cp -r ramdisk_root_mb/* ramdisk_root/ 2>/dev/null || true
+          fi
+          cd ramdisk_root
+        fi
+        echo "Extracted tree:"
+        ls -la
+        find . -name "*.ko" | head -20
+
+        echo "=== Step 5: copy modules to TWRP tree ==="
         TARGET_MOD_DIR=$GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules
-        mkdir -p $TARGET_MOD_DIR
-        
-        # Копируем все .ko модули и списки порядка загрузки
-        find . -name "*.ko" -exec cp {} $TARGET_MOD_DIR/ \;
-        find . -name "modules.load*" -exec cp {} $TARGET_MOD_DIR/modules.load \;
-        find . -name "modules.dep*" -exec cp {} $TARGET_MOD_DIR/modules.dep \;
+        mkdir -p "$TARGET_MOD_DIR"
+        find /tmp/vendor_unpack/ramdisk_root -name "*.ko" -exec cp {} "$TARGET_MOD_DIR/" \; || true
+        find /tmp/vendor_unpack/ramdisk_root -name "modules.load*" -exec cp {} "$TARGET_MOD_DIR/modules.load" \; || true
+        find /tmp/vendor_unpack/ramdisk_root -name "modules.dep*" -exec cp {} "$TARGET_MOD_DIR/modules.dep" \; || true
+        find /tmp/vendor_unpack/ramdisk_root -name "modules.alias*" -exec cp {} "$TARGET_MOD_DIR/modules.alias" \; || true
+        find /tmp/vendor_unpack/ramdisk_root -name "modules.softdep*" -exec cp {} "$TARGET_MOD_DIR/modules.softdep" \; || true
+        ls -la "$TARGET_MOD_DIR" | head -30
 
     - name: Configure Board & Direct Modprobe Init
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
 
-        # Полное удаление папки sepolicy и очистка всех упоминаний в Makefile
         rm -rf sepolicy
         find . -type f -name "*.mk" -exec sed -i '/SEPOLICY/d' {} +
         find . -type f -name "*.mk" -exec sed -i '/sepolicy/d' {} +
 
-        # Очистка конфликтующих переменных
         sed -i '/TW_THEME/d' BoardConfig.mk
         sed -i '/TARGET_SCREEN/d' BoardConfig.mk
         sed -i '/TARGET_RECOVERY_PIXEL_FORMAT/d' BoardConfig.mk
         sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
         sed -i '/TW_ROTATION/d' BoardConfig.mk
 
-        # Конфигурация
         cat << "CFG" >> BoardConfig.mk
 
         # Display Specs
@@ -121,13 +181,13 @@ jobs:
         ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
         CFG
 
-        # Поочередная загрузка модулей по файлу modules.load
+        mkdir -p recovery/root
         cat << "RC" > recovery/root/init.recovery.yunluo.rc
         on init
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/\$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod $m; done; fi"
 
         on boot
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/\$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod $m; done; fi"
         RC
 
     - name: Compile TWRP
@@ -142,7 +202,7 @@ jobs:
 
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
-        
+
         mka recoveryimage bootimage vendorbootimage -j$(nproc --all)
 
     - name: Upload Artifacts
