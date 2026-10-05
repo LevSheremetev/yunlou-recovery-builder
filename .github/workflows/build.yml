@@ -48,36 +48,37 @@ jobs:
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
         
-        # Исправление битого файла SEPolicy
-        > device/xiaomi/yunluo/sepolicy/vendor/hal_lineage_health.te || true
+        # 1. Удаление конфликтной папки sepolicy от LineageOS
+        rm -rf device/xiaomi/yunluo/sepolicy
 
+        # 2. Безопасное подключение зависимостей
         find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
 
+        # 3. Заглушки и мягкий импорт отсутствующих вендорных конфигураций
         mkdir -p device/mediatek/sepolicy_vndr
         touch device/mediatek/sepolicy_vndr/SEPolicy.mk
         sed -i 's/^include device\/mediatek/-include device\/mediatek/g' device/xiaomi/yunluo/BoardConfig.mk
         sed -i 's/^include vendor\/xiaomi/-include vendor\/xiaomi/g' device/xiaomi/yunluo/BoardConfig.mk
 
+        # 4. Настройки безопасности и экрана TWRP (1200x2000)
+        echo "SELINUX_IGNORE_NEVERALLOWS := true" >> device/xiaomi/yunluo/BoardConfig.mk
         echo "TW_THEME := portrait_hdpi" >> device/xiaomi/yunluo/BoardConfig.mk
         echo "TARGET_SCREEN_WIDTH := 1200" >> device/xiaomi/yunluo/BoardConfig.mk
         echo "TARGET_SCREEN_HEIGHT := 2000" >> device/xiaomi/yunluo/BoardConfig.mk
 
+        # 5. Сборка
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
         
-        mka bootimage vendorbootimage recoveryimage -j$(nproc --all)
+        mka recoveryimage bootimage vendorbootimage -j$(nproc --all)
 
     - name: Find Compiled Images
       run: |
-        echo "Содержимое папки yunluo:"
-        ls -la twrp_12.1/out/target/product/yunluo/ || true
-        echo "Поиск любых .img файлов:"
-        find twrp_12.1/out/ -name "*.img"
+        echo "=== Найденные .img файлы ==="
+        find twrp_12.1/out/target/product/yunluo/ -maxdepth 2 -name "*.img"
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-Images
-        path: |
-          twrp_12.1/out/target/product/yunluo/*.img
-          twrp_12.1/out/target/product/yunluo/*/*.img
+        name: TWRP-Yunluo-Final
+        path: twrp_12.1/out/target/product/yunluo/*.img
