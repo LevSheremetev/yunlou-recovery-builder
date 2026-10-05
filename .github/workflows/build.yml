@@ -40,9 +40,7 @@ jobs:
     - name: Clone Device Tree and Prebuilt Kernel
       run: |
         cd twrp_12.1
-        # Клонируем дерево устройства
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
-        # Клонируем готовые файлы ядра (prebuilts), чтобы не собирать его с нуля
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
     - name: Compile TWRP
@@ -64,15 +62,20 @@ jobs:
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
         
-        mka recoveryimage -j$(nproc --all)
+        # Собираем все варианты: boot, vendor_boot и recovery
+        mka bootimage vendorbootimage recoveryimage -j$(nproc --all)
 
     - name: Find Compiled Images
       run: |
-        echo "Поиск созданных .img файлов:"
-        find twrp_12.1/out/target/product/ -name "*.img"
+        echo "Содержимое папки yunluo:"
+        ls -la twrp_12.1/out/target/product/yunluo/ || true
+        echo "Поиск любых .img файлов:"
+        find twrp_12.1/out/ -name "*.img"
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: TWRP-Yunluo-Images
-        path: twrp_12.1/out/target/product/**/*.img
+        path: |
+          twrp_12.1/out/target/product/yunluo/*.img
+          twrp_12.1/out/target/product/yunluo/*/*.img
