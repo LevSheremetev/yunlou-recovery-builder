@@ -48,6 +48,9 @@ jobs:
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
         
+        # Исправление битого файла SEPolicy
+        > device/xiaomi/yunluo/sepolicy/vendor/hal_lineage_health.te || true
+
         find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
 
         mkdir -p device/mediatek/sepolicy_vndr
@@ -62,7 +65,6 @@ jobs:
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
         
-        # Собираем все варианты: boot, vendor_boot и recovery
         mka bootimage vendorbootimage recoveryimage -j$(nproc --all)
 
     - name: Find Compiled Images
