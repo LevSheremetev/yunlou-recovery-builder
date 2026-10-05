@@ -74,10 +74,10 @@ jobs:
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
 
-        # Отключение SEPolicy во избежание синтаксических ошибок
+        # Полное удаление папки sepolicy и очистка всех упоминаний в Makefile
         rm -rf sepolicy
-        find . -type f -name "*.mk" -exec sed -i '/sepolicy/d' {} +
         find . -type f -name "*.mk" -exec sed -i '/SEPOLICY/d' {} +
+        find . -type f -name "*.mk" -exec sed -i '/sepolicy/d' {} +
 
         # Очистка конфликтующих переменных
         sed -i '/TW_THEME/d' BoardConfig.mk
@@ -86,7 +86,7 @@ jobs:
         sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
         sed -i '/TW_ROTATION/d' BoardConfig.mk
 
-        # Запись оптимальной конфигурации
+        # Конфигурация
         cat << "CFG" >> BoardConfig.mk
 
         # Display Specs
@@ -99,7 +99,7 @@ jobs:
         TW_GRAPHICS_FORCE_USE_LINELENGTH := true
         RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # Permissive SELinux & Kernel Arguments
+        # Permissive SELinux
         BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
         SELINUX_IGNORE_NEVERALLOWS := true
 
