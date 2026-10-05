@@ -43,35 +43,40 @@ jobs:
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
-    - name: Deep Patch Configs
+    - name: Hardcode MTK Graphics & Force ADB
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
         
         # Очистка SEPolicy
         rm -rf sepolicy
 
-        # Удаление старых объявлений тем и разрешения из BoardConfig.mk
+        # Чистим старые конфликтующие параметры
         sed -i '/TW_THEME/d' BoardConfig.mk
         sed -i '/TARGET_SCREEN/d' BoardConfig.mk
-        sed -i '/TW_EXTRA_LANGUAGES/d' BoardConfig.mk
+        sed -i '/TARGET_RECOVERY_PIXEL_FORMAT/d' BoardConfig.mk
 
-        # Внедрение корректных параметров графики, шрифтов и ADB
+        # Принудительная правка графического буфера MTK и отладки ADB
         cat << "CFG" >> BoardConfig.mk
 
-        # TWRP Graphics & Fonts Fix
+        # Graphics & Font Render Fix for MTK Framebuffer
         TW_THEME := portrait_hdpi
         TARGET_SCREEN_WIDTH := 1200
         TARGET_SCREEN_HEIGHT := 2000
         TARGET_SCREEN_DENSITY := 280
-        TW_EXTRA_LANGUAGES := true
-        TW_DEFAULT_LANGUAGE := en
+        TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
+        TW_GRAPHICS_FORCE_USE_LINELENGTH := true
+        RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # TWRP Touch & Input Fix
+        # Touch & Modules
         TW_SUPPORT_INPUT_AIDL := true
         TW_LOAD_VENDOR_BOOT_MODULES := true
+        TW_USE_TOOLBOX := true
 
-        # ADB & USB Fix
+        # Force ADB Debug Mode
         TW_EXCLUDE_DEFAULT_USB_INIT := true
+        ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
+        ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
+        ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.config=adb
         SELINUX_IGNORE_NEVERALLOWS := true
         CFG
 
@@ -95,5 +100,5 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-DeepFix
+        name: TWRP-Yunluo-MTKFix
         path: twrp_12.1/out/target/product/yunluo/*.img
