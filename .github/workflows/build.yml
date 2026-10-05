@@ -1,4 +1,4 @@
-name: Build TWRP Recovery for Yunluo
+name: Build TWRP Recovery for Yunluo (Android 16 Kernel)
 
 on:
   workflow_dispatch:
@@ -16,17 +16,23 @@ jobs:
         haskell: true
         large-packages: true
 
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
     - name: Initialize Build Environment & Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libgl1-mesa-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4
 
-    - name: Install Repo Tool
+    - name: Install Repo Tool & Magiskboot
       run: |
         mkdir -p ~/bin
         curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
+
+        wget -q https://github.com/HuskyDG/magisk-files/raw/main/magiskboot -O ~/bin/magiskboot
+        chmod +x ~/bin/magiskboot
 
     - name: Sync TWRP Source
       run: |
@@ -43,7 +49,26 @@ jobs:
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
-    - name: Extract Stock Vendor Modules & Configure Board
+    - name: Extract Modules from LineageOS 23 vendor_boot.img
+      run: |
+        mkdir -p /tmp/vendor_unpack
+        cp vendor_boot.img /tmp/vendor_unpack/
+        cd /tmp/vendor_unpack
+        
+        # Распаковываем vendor_boot и вытягиваем ramdisk
+        ~/bin/magiskboot unpack vendor_boot.img
+        mkdir -p ramdisk_out
+        cd ramdisk_out
+        ~/bin/magiskboot cpio ../ramdisk.cpio extract
+        
+        # Копируем живые модули Android 16 в TWRP
+        mkdir -p $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules
+        mkdir -p $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/lib/modules
+        
+        find . -name "*.ko" -exec cp {} $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules/ \;
+        find . -name "*.ko" -exec cp {} $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/lib/modules/ \;
+
+    - name: Configure Board & Direct Modprobe Init
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
 
@@ -57,10 +82,10 @@ jobs:
         sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
         sed -i '/TW_ROTATION/d' BoardConfig.mk
 
-        # Конфигурация графики и дисплея
+        # Конфигурация
         cat << "CFG" >> BoardConfig.mk
 
-        # Working Graphics Specs
+        # Working Display Config
         TW_ROTATION := 180
         TW_THEME := portrait_hdpi
         TARGET_SCREEN_WIDTH := 1200
@@ -70,12 +95,12 @@ jobs:
         TW_GRAPHICS_FORCE_USE_LINELENGTH := true
         RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # Vendor Modules Config
+        # Android 16 Modules Support
         TW_LOAD_VENDOR_BOOT_MODULES := true
         BOARD_VENDOR_BOOT_RECOVERY_LOAD_MODULES := true
         TW_SUPPORT_INPUT_AIDL := true
 
-        # ADB ConfigFS Properties
+        # ADB ConfigFS
         TW_EXCLUDE_DEFAULT_USB_INIT := false
         ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
         ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
@@ -83,21 +108,9 @@ jobs:
         ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
         CFG
 
-        # Выкачиваем и распаковываем оригинальные модули из вендора yunluo
-        mkdir -p recovery/root/vendor/lib/modules
-        mkdir -p recovery/root/lib/modules
-
-        cd ../../../
-        git clone --depth=1 https://github.com/xiaomi-mt6789-devs/android_vendor_xiaomi_yunluo vendor/xiaomi/yunluo || true
-
-        # Копируем найденные стоковые драйверы и модули ядра
-        find vendor/xiaomi/yunluo -name "*.ko" -exec cp {} twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules/ \; || true
-        find vendor/xiaomi/yunluo -name "*.ko" -exec cp {} twrp_12.1/device/xiaomi/yunluo/recovery/root/lib/modules/ \; || true
-
-        # Задаем жесткий автозапуск модулей в init.rc
-        cat << "RC" > twrp_12.1/device/xiaomi/yunluo/recovery/root/init.recovery.yunluo.rc
-        on fs
-            export PATH /system/bin:/vendor/bin
+        # Автозагрузка вытянутых модулей при старте
+        cat << "RC" > recovery/root/init.recovery.yunluo.rc
+        on init
             exec u:r:modprobe:s0 -- /system/bin/sh -c "for m in /vendor/lib/modules/*.ko /lib/modules/*.ko; do insmod \$m; done"
 
         on boot
@@ -124,5 +137,5 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-StockModules-Injected
+        name: TWRP-Yunluo-LineageOS23-Modules
         path: twrp_12.1/out/target/product/yunluo/*.img
