@@ -43,13 +43,42 @@ jobs:
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
+    - name: Deep Patch Configs
+      run: |
+        cd twrp_12.1/device/xiaomi/yunluo
+        
+        # Очистка SEPolicy
+        rm -rf sepolicy
+
+        # Удаление старых объявлений тем и разрешения из BoardConfig.mk
+        sed -i '/TW_THEME/d' BoardConfig.mk
+        sed -i '/TARGET_SCREEN/d' BoardConfig.mk
+        sed -i '/TW_EXTRA_LANGUAGES/d' BoardConfig.mk
+
+        # Внедрение корректных параметров графики, шрифтов и ADB
+        cat << "CFG" >> BoardConfig.mk
+
+        # TWRP Graphics & Fonts Fix
+        TW_THEME := portrait_hdpi
+        TARGET_SCREEN_WIDTH := 1200
+        TARGET_SCREEN_HEIGHT := 2000
+        TARGET_SCREEN_DENSITY := 280
+        TW_EXTRA_LANGUAGES := true
+        TW_DEFAULT_LANGUAGE := en
+
+        # TWRP Touch & Input Fix
+        TW_SUPPORT_INPUT_AIDL := true
+        TW_LOAD_VENDOR_BOOT_MODULES := true
+
+        # ADB & USB Fix
+        TW_EXCLUDE_DEFAULT_USB_INIT := true
+        SELINUX_IGNORE_NEVERALLOWS := true
+        CFG
+
     - name: Compile TWRP
       run: |
         cd twrp_12.1
         export ALLOW_MISSING_DEPENDENCIES=true
-        
-        # Очистка SEPolicy
-        rm -rf device/xiaomi/yunluo/sepolicy
 
         find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
 
@@ -57,19 +86,6 @@ jobs:
         touch device/mediatek/sepolicy_vndr/SEPolicy.mk
         sed -i 's/^include device\/mediatek/-include device\/mediatek/g' device/xiaomi/yunluo/BoardConfig.mk
         sed -i 's/^include vendor\/xiaomi/-include vendor\/xiaomi/g' device/xiaomi/yunluo/BoardConfig.mk
-
-        # Флаги безопасности
-        echo "SELINUX_IGNORE_NEVERALLOWS := true" >> device/xiaomi/yunluo/BoardConfig.mk
-
-        # Настройки экрана и темы (Фикс кракозябр/шрифта)
-        echo "TW_THEME := portrait_hdpi" >> device/xiaomi/yunluo/BoardConfig.mk
-        echo "TARGET_SCREEN_WIDTH := 1200" >> device/xiaomi/yunluo/BoardConfig.mk
-        echo "TARGET_SCREEN_HEIGHT := 2000" >> device/xiaomi/yunluo/BoardConfig.mk
-        echo "TARGET_SCREEN_DENSITY := 280" >> device/xiaomi/yunluo/BoardConfig.mk
-
-        # Фикс тачскрина для Android 12 / MediaTek Virtual A/B
-        echo "TW_SUPPORT_INPUT_AIDL := true" >> device/xiaomi/yunluo/BoardConfig.mk
-        echo "TW_LOAD_VENDOR_BOOT_MODULES := true" >> device/xiaomi/yunluo/BoardConfig.mk
 
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
@@ -79,5 +95,5 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-TouchFix
+        name: TWRP-Yunluo-DeepFix
         path: twrp_12.1/out/target/product/yunluo/*.img
