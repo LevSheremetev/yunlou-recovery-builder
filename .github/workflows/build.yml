@@ -49,43 +49,47 @@ jobs:
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
-    - name: Extract Modules from LineageOS 23 vendor_boot.img
+    - name: Extract Modules & Order from LineageOS 23 vendor_boot.img
       run: |
         mkdir -p /tmp/vendor_unpack
         cp vendor_boot.img /tmp/vendor_unpack/
         cd /tmp/vendor_unpack
         
-        # Распаковываем vendor_boot и вытягиваем ramdisk
+        # Распаковываем vendor_boot
         ~/bin/magiskboot unpack vendor_boot.img
         mkdir -p ramdisk_out
         cd ramdisk_out
         ~/bin/magiskboot cpio ../ramdisk.cpio extract
         
-        # Копируем живые модули Android 16 в TWRP
-        mkdir -p $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules
-        mkdir -p $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/lib/modules
+        # Директории в TWRP ramdisk
+        TARGET_MOD_DIR=$GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules
+        mkdir -p $TARGET_MOD_DIR
         
-        find . -name "*.ko" -exec cp {} $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules/ \;
-        find . -name "*.ko" -exec cp {} $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/lib/modules/ \;
+        # Копируем все .ko модули и списки порядка загрузки
+        find . -name "*.ko" -exec cp {} $TARGET_MOD_DIR/ \;
+        find . -name "modules.load*" -exec cp {} $TARGET_MOD_DIR/modules.load \;
+        find . -name "modules.dep*" -exec cp {} $TARGET_MOD_DIR/modules.dep \;
 
     - name: Configure Board & Direct Modprobe Init
       run: |
         cd twrp_12.1/device/xiaomi/yunluo
 
-        # Очистка устаревших SEPolicy
+        # Отключение SEPolicy во избежание синтаксических ошибок
         rm -rf sepolicy
+        find . -type f -name "*.mk" -exec sed -i '/sepolicy/d' {} +
+        find . -type f -name "*.mk" -exec sed -i '/SEPOLICY/d' {} +
 
-        # Сброс старых флагов
+        # Очистка конфликтующих переменных
         sed -i '/TW_THEME/d' BoardConfig.mk
         sed -i '/TARGET_SCREEN/d' BoardConfig.mk
         sed -i '/TARGET_RECOVERY_PIXEL_FORMAT/d' BoardConfig.mk
         sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
         sed -i '/TW_ROTATION/d' BoardConfig.mk
 
-        # Конфигурация
+        # Запись оптимальной конфигурации
         cat << "CFG" >> BoardConfig.mk
 
-        # Working Display Config
+        # Display Specs
         TW_ROTATION := 180
         TW_THEME := portrait_hdpi
         TARGET_SCREEN_WIDTH := 1200
@@ -95,12 +99,16 @@ jobs:
         TW_GRAPHICS_FORCE_USE_LINELENGTH := true
         RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
 
-        # Android 16 Modules Support
+        # Permissive SELinux & Kernel Arguments
+        BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
+        SELINUX_IGNORE_NEVERALLOWS := true
+
+        # Modules & Input Setup
         TW_LOAD_VENDOR_BOOT_MODULES := true
         BOARD_VENDOR_BOOT_RECOVERY_LOAD_MODULES := true
         TW_SUPPORT_INPUT_AIDL := true
 
-        # ADB ConfigFS
+        # ADB ConfigFS Settings
         TW_EXCLUDE_DEFAULT_USB_INIT := false
         ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
         ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
@@ -108,13 +116,13 @@ jobs:
         ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
         CFG
 
-        # Автозагрузка вытянутых модулей при старте
+        # Поочередная загрузка модулей по файлу modules.load
         cat << "RC" > recovery/root/init.recovery.yunluo.rc
         on init
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "for m in /vendor/lib/modules/*.ko /lib/modules/*.ko; do insmod \$m; done"
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/\$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
 
         on boot
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "for m in /vendor/lib/modules/*.ko /lib/modules/*.ko; do insmod \$m; done"
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/\$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
         RC
 
     - name: Compile TWRP
@@ -126,8 +134,6 @@ jobs:
 
         mkdir -p device/mediatek/sepolicy_vndr
         touch device/mediatek/sepolicy_vndr/SEPolicy.mk
-        sed -i 's/^include device\/mediatek/-include device\/mediatek/g' device/xiaomi/yunluo/BoardConfig.mk
-        sed -i 's/^include vendor\/xiaomi/-include vendor\/xiaomi/g' device/xiaomi/yunluo/BoardConfig.mk
 
         source build/envsetup.sh
         lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
@@ -137,5 +143,5 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-Yunluo-LineageOS23-Modules
+        name: TWRP-Yunluo-LineageOS23-Final
         path: twrp_12.1/out/target/product/yunluo/*.img
