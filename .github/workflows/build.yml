@@ -31,7 +31,6 @@ jobs:
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
 
-        # Скачивание официального Magisk v27.0 (topjohnwu) и извлечение x86_64 magiskboot
         curl -sSLf https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk -o /tmp/magisk.apk
         unzip -o /tmp/magisk.apk -d /tmp/magisk_extracted
         cp $(find /tmp/magisk_extracted -name "libmagiskboot.so" | grep "x86_64") ~/bin/magiskboot
@@ -58,32 +57,38 @@ jobs:
         cp vendor_boot.img /tmp/vendor_unpack/
         cd /tmp/vendor_unpack
         
-        # Распаковываем vendor_boot
         ~/bin/magiskboot unpack vendor_boot.img
         mkdir -p ramdisk_out
         cd ramdisk_out
         
-        # Фикс: пробуем magiskboot, если падает из-за magic/сжатия -> используем резервный метод lz4+cpio
         ~/bin/magiskboot cpio ../ramdisk.cpio extract || {
-          echo "Magiskboot failed to process cpio. Trying fallback lz4 and standard cpio extraction..."
+          echo "Fallback to lz4/cpio extraction..."
           lz4 -d ../ramdisk.cpio ../ramdisk_uncompressed.cpio || cp ../ramdisk.cpio ../ramdisk_uncompressed.cpio
           cpio -i -m -F ../ramdisk_uncompressed.cpio || true
         }
         
-        # Директории в TWRP ramdisk
         TARGET_MOD_DIR=$GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules
         mkdir -p $TARGET_MOD_DIR
         
-        # Копируем все .ko модули и списки порядка загрузки
         find . -name "*.ko" -exec cp {} $TARGET_MOD_DIR/ \;
         find . -name "modules.load*" -exec cp {} $TARGET_MOD_DIR/modules.load \;
         find . -name "modules.dep*" -exec cp {} $TARGET_MOD_DIR/modules.dep \;
 
     - name: Configure Board & Direct Modprobe Init
       run: |
-        cd twrp_12.1/device/xiaomi/yunluo
+        cd twrp_12.1
 
-        # Полное удаление папки sepolicy и очистка всех упоминаний в Makefile
+        # Фикс отсутствующих vendor-файлов
+        mkdir -p vendor/xiaomi/yunluo
+        touch vendor/xiaomi/yunluo/BoardConfigVendor.mk
+        touch vendor/xiaomi/yunluo/yunluo-vendor.mk
+
+        cd device/xiaomi/yunluo
+
+        # Замена жесткого include на мягкий -include в BoardConfig.mk
+        sed -i 's/include vendor\/xiaomi\/yunluo\/BoardConfigVendor.mk/-include vendor\/xiaomi\/yunluo\/BoardConfigVendor.mk/g' BoardConfig.mk
+
+        # Удаление sepolicy и зачистка Makefile
         rm -rf sepolicy
         find . -type f -name "*.mk" -exec sed -i '/SEPOLICY/d' {} +
         find . -type f -name "*.mk" -exec sed -i '/sepolicy/d' {} +
