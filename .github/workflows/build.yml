@@ -1,4 +1,4 @@
-name: Build TWRP Recovery for Yunluo (Android 16 Kernel)
+Name: Build TWRP Recovery for Yunluo (Android 16 Kernel)
 
 on:
   workflow_dispatch:
@@ -51,13 +51,29 @@ jobs:
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
         git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
 
-    - name: Extract Modules & Order from LineageOS 23 vendor_boot.img
+    - name: Download & Extract Stock Kernel, Modules & DTB from Catbox
       run: |
-        mkdir -p /tmp/vendor_unpack
-        cp vendor_boot.img /tmp/vendor_unpack/
-        cd /tmp/vendor_unpack
+        mkdir -p /tmp/unpack
+        cd /tmp/unpack
         
+        # Скачиваем стоковые boot_a.img и vendor_boot_a.img
+        curl -sSLf "https://files.catbox.moe/z8xrgf.img" -o boot.img
+        curl -sSLf "https://files.catbox.moe/a7b7lh.img" -o vendor_boot.img
+        
+        # Извлекаем родное ядро
+        ~/bin/magiskboot unpack boot.img
+        if [ -f kernel ]; then
+          cp kernel $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo-kernel/kernel || true
+        fi
+        rm -f ramdisk.cpio
+        
+        # Извлекаем vendor_boot и DTB
         ~/bin/magiskboot unpack vendor_boot.img
+        if [ -f dtb ]; then
+          cp dtb $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo-kernel/dtb || true
+          cp dtb $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/dtb || true
+        fi
+
         mkdir -p ramdisk_out
         cd ramdisk_out
         
@@ -132,13 +148,13 @@ jobs:
         ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
         CFG
 
-        # Поочередная загрузка модулей по файлу modules.load
+        # Поочередная загрузка модулей
         cat << "RC" > recovery/root/init.recovery.yunluo.rc
         on init
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/\$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do m_name=\$(basename \"\$m\"); if [ -f \"/vendor/lib/modules/\$m_name\" ]; then insmod \"/vendor/lib/modules/\$m_name\"; fi; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
 
         on boot
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do insmod /vendor/lib/modules/\$m; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
+            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do m_name=\$(basename \"\$m\"); if [ -f \"/vendor/lib/modules/\$m_name\" ]; then insmod \"/vendor/lib/modules/\$m_name\"; fi; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
         RC
 
     - name: Compile TWRP
