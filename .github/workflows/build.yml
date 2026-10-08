@@ -46,17 +46,20 @@ jobs:
           rm -rf ~/twrp/device/xiaomi/yunluo
           mkdir -p ~/twrp/device/xiaomi/yunluo
           cp -r $GITHUB_WORKSPACE/device/xiaomi/yunluo/* ~/twrp/device/xiaomi/yunluo/
-          echo "=== Device tree contents ==="
+          echo "=== Device tree files ==="
           ls -la ~/twrp/device/xiaomi/yunluo/
+          echo "=== Checking TWRP vendor ==="
+          ls -la ~/twrp/vendor/twrp/config/ || echo "TWRP vendor missing!"
 
       - name: Build TWRP
         run: |
           cd ~/twrp
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          echo "=== Available products ==="
-          print_lunch_menu 2>&1 | head -30
-          lunch twrp_yunluo-eng
+          export TARGET_PRODUCT=twrp_yunluo
+          export TARGET_BUILD_VARIANT=eng
+          echo "=== TARGET_PRODUCT: $TARGET_PRODUCT ==="
+          echo "=== TARGET_BUILD_VARIANT: $TARGET_BUILD_VARIANT ==="
           mka recoveryimage
 
       - name: Upload TWRP Image
