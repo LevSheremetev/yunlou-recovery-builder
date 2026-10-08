@@ -1,179 +1,47 @@
-Name: Build TWRP Recovery for Yunluo (Android 16 Kernel)
-
+name: Build TWRP Recovery
 on:
   workflow_dispatch:
-
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-    - name: Free Disk Space
-      uses: jlumbroso/free-disk-space@main
-      with:
-        tool-cache: false
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Set up build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3
 
-    - name: Initialize Build Environment & Tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagej lib32ncurses-dev lib32z1-dev libelf-dev libxml2-utils xsltproc zip libssl-dev python3 python-is-python3 p7zip-full cpio lz4 unzip
+      - name: Install repo tool
+        run: |
+          mkdir ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          sudo ln -sf ~/bin/repo /usr/bin/repo
 
-    - name: Install Repo Tool & Magiskboot
-      run: |
-        mkdir -p ~/bin
-        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-        chmod a+x ~/bin/repo
-        echo "$HOME/bin" >> $GITHUB_PATH
+      - name: Initialize TWRP source
+        run: |
+          mkdir ~/twrp
+          cd ~/twrp
+          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_omni.git -b twrp-14.1
+          repo sync -j$(nproc --all)
 
-        curl -sSLf https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk -o /tmp/magisk.apk
-        unzip -o /tmp/magisk.apk -d /tmp/magisk_extracted
-        cp $(find /tmp/magisk_extracted -name "libmagiskboot.so" | grep "x86_64") ~/bin/magiskboot
-        chmod +x ~/bin/magiskboot
+      - name: Copy device tree
+        run: |
+          cp -r $GITHUB_WORKSPACE/device ~/twrp/device/xiaomi/yunluo
+          cp -r $GITHUB_WORKSPACE/recovery ~/twrp/device/xiaomi/yunluo/recovery
 
-    - name: Sync TWRP Source
-      run: |
-        mkdir twrp_12.1 && cd twrp_12.1
-        git config --global user.name "Builder"
-        git config --global user.email "builder@github.com"
-        git config --global color.ui false
-        repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
-        repo sync -c -j4 --force-sync --no-clone-bundle --no-tags
+      - name: Build TWRP
+        run: |
+          cd ~/twrp
+          source build/envsetup.sh
+          export ALLOW_MISSING_DEPENDENCIES=true
+          lunch twrp_yunluo-eng
+          mka recoveryimage
 
-    - name: Clone Device Tree
-      run: |
-        cd twrp_12.1
-        git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo device/xiaomi/yunluo
-        git clone https://github.com/xiaomi-mt6789-devs/android_device_xiaomi_yunluo-kernel device/xiaomi/yunluo-kernel
-
-    - name: Download & Extract Stock Kernel, Modules & DTB from Catbox
-      run: |
-        mkdir -p /tmp/unpack
-        cd /tmp/unpack
-        
-        # Скачиваем стоковые boot_a.img и vendor_boot_a.img
-        curl -sSLf "https://files.catbox.moe/z8xrgf.img" -o boot.img
-        curl -sSLf "https://files.catbox.moe/a7b7lh.img" -o vendor_boot.img
-        
-        # Извлекаем родное ядро
-        ~/bin/magiskboot unpack boot.img
-        if [ -f kernel ]; then
-          cp kernel $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo-kernel/kernel || true
-        fi
-        rm -f ramdisk.cpio
-        
-        # Извлекаем vendor_boot и DTB
-        ~/bin/magiskboot unpack vendor_boot.img
-        if [ -f dtb ]; then
-          cp dtb $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo-kernel/dtb || true
-          cp dtb $GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/dtb || true
-        fi
-
-        mkdir -p ramdisk_out
-        cd ramdisk_out
-        
-        ~/bin/magiskboot cpio ../ramdisk.cpio extract || {
-          echo "Fallback to lz4/cpio extraction..."
-          lz4 -d ../ramdisk.cpio ../ramdisk_uncompressed.cpio || cp ../ramdisk.cpio ../ramdisk_uncompressed.cpio
-          cpio -i -m -F ../ramdisk_uncompressed.cpio || true
-        }
-        
-        TARGET_MOD_DIR=$GITHUB_WORKSPACE/twrp_12.1/device/xiaomi/yunluo/recovery/root/vendor/lib/modules
-        mkdir -p $TARGET_MOD_DIR
-        
-        find . -name "*.ko" -exec cp {} $TARGET_MOD_DIR/ \;
-        find . -name "modules.load*" -exec cp {} $TARGET_MOD_DIR/modules.load \;
-        find . -name "modules.dep*" -exec cp {} $TARGET_MOD_DIR/modules.dep \;
-
-    - name: Configure Board & Direct Modprobe Init
-      run: |
-        cd twrp_12.1
-
-        # Фикс отсутствующих vendor-файлов
-        mkdir -p vendor/xiaomi/yunluo
-        touch vendor/xiaomi/yunluo/BoardConfigVendor.mk
-        touch vendor/xiaomi/yunluo/yunluo-vendor.mk
-
-        cd device/xiaomi/yunluo
-
-        # Замена жесткого include на мягкий -include в BoardConfig.mk
-        sed -i 's/include vendor\/xiaomi\/yunluo\/BoardConfigVendor.mk/-include vendor\/xiaomi\/yunluo\/BoardConfigVendor.mk/g' BoardConfig.mk
-
-        # Удаление sepolicy и зачистка Makefile
-        rm -rf sepolicy
-        find . -type f -name "*.mk" -exec sed -i '/SEPOLICY/d' {} +
-        find . -type f -name "*.mk" -exec sed -i '/sepolicy/d' {} +
-
-        # Очистка конфликтующих переменных
-        sed -i '/TW_THEME/d' BoardConfig.mk
-        sed -i '/TARGET_SCREEN/d' BoardConfig.mk
-        sed -i '/TARGET_RECOVERY_PIXEL_FORMAT/d' BoardConfig.mk
-        sed -i '/TW_EXCLUDE_DEFAULT_USB_INIT/d' BoardConfig.mk
-        sed -i '/TW_ROTATION/d' BoardConfig.mk
-
-        # Конфигурация
-        cat << "CFG" >> BoardConfig.mk
-
-        # Display Specs
-        TW_ROTATION := 180
-        TW_THEME := portrait_hdpi
-        TARGET_SCREEN_WIDTH := 1200
-        TARGET_SCREEN_HEIGHT := 2000
-        TARGET_SCREEN_DENSITY := 280
-        TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
-        TW_GRAPHICS_FORCE_USE_LINELENGTH := true
-        RECOVERY_GRAPHICS_USE_HEADER_SCALING := true
-
-        # Permissive SELinux & Bypass Policy Checks
-        BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
-        SELINUX_IGNORE_NEVERALLOWS := true
-        BOARD_SEPOLICY_DIRS :=
-        SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS :=
-
-        # Modules & Input Setup
-        TW_LOAD_VENDOR_BOOT_MODULES := true
-        BOARD_VENDOR_BOOT_RECOVERY_LOAD_MODULES := true
-        TW_SUPPORT_INPUT_AIDL := true
-
-        # ADB ConfigFS Settings
-        TW_EXCLUDE_DEFAULT_USB_INIT := false
-        ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
-        ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
-        ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.config=adb,mtp
-        ADDITIONAL_DEFAULT_PROPERTIES += sys.usb.controller=11280000.usb
-        CFG
-
-        # Поочередная загрузка модулей
-        cat << "RC" > recovery/root/init.recovery.yunluo.rc
-        on init
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do m_name=\$(basename \"\$m\"); if [ -f \"/vendor/lib/modules/\$m_name\" ]; then insmod \"/vendor/lib/modules/\$m_name\"; fi; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
-
-        on boot
-            exec u:r:modprobe:s0 -- /system/bin/sh -c "if [ -f /vendor/lib/modules/modules.load ]; then while read m; do m_name=\$(basename \"\$m\"); if [ -f \"/vendor/lib/modules/\$m_name\" ]; then insmod \"/vendor/lib/modules/\$m_name\"; fi; done < /vendor/lib/modules/modules.load; else for m in /vendor/lib/modules/*.ko; do insmod \$m; done; fi"
-        RC
-
-    - name: Compile TWRP
-      run: |
-        cd twrp_12.1
-        export ALLOW_MISSING_DEPENDENCIES=true
-
-        find device/xiaomi/yunluo -type f -name "*.mk" -exec sed -i 's/$(call inherit-product,/$(call inherit-product-if-exists,/g' {} +
-
-        mkdir -p device/mediatek/sepolicy_vndr
-        touch device/mediatek/sepolicy_vndr/SEPolicy.mk
-
-        source build/envsetup.sh
-        lunch lineage_yunluo-eng || lunch lineage_yunluo-userdebug
-        
-        mka recoveryimage bootimage vendorbootimage -j$(nproc --all)
-
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: TWRP-Yunluo-LineageOS23-Final
-        path: twrp_12.1/out/target/product/yunluo/*.img
+      - name: Upload TWRP image
+        uses: actions/upload-artifact@v4
+        with:
+          name: TWRP-Recovery-Image
+          path: ~/twrp/out/target/product/yunluo/recovery.img
