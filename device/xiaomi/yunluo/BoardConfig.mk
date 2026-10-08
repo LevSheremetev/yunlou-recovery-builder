@@ -27,3 +27,4 @@ TARGET_PREBUILT_KERNEL := device/xiaomi/yunluo/prebuilt/kernel
 BOARD_PREBUILT_DTBOIMAGE := device/xiaomi/yunluo/prebuilt/dtb.img
 AB_OTA_UPDATER := true
 TARGET_OTA_ASSERT_DEVICE := yunluo
+TARGET_DEVICE := yunluo
