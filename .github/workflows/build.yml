@@ -43,8 +43,7 @@ jobs:
 
       - name: Copy Device Tree
         run: |
-          cp -r $GITHUB_WORKSPACE/device ~/twrp/device/xiaomi/yunluo
-          cp -r $GITHUB_WORKSPACE/recovery ~/twrp/device/xiaomi/yunluo/recovery
+          cp -r $GITHUB_WORKSPACE/device ~/twrp/
 
       - name: Build TWRP
         run: |
