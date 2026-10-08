@@ -23,3 +23,7 @@ BOARD_KERNEL_IMAGE_NAME := Image.gz
 
 TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
 TARGET_USES_MKE2FS := true
+TARGET_PREBUILT_KERNEL := device/xiaomi/yunluo/prebuilt/kernel
+BOARD_PREBUILT_DTBOIMAGE := device/xiaomi/yunluo/prebuilt/dtb.img
+AB_OTA_UPDATER := true
+TARGET_OTA_ASSERT_DEVICE := yunluo
