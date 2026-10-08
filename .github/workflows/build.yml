@@ -43,13 +43,21 @@ jobs:
 
       - name: Copy Device Tree
         run: |
-          cp -r $GITHUB_WORKSPACE/device ~/twrp/
+          rm -rf ~/twrp/device/xiaomi/yunluo
+          mkdir -p ~/twrp/device/xiaomi/yunluo
+          cp -r $GITHUB_WORKSPACE/device/xiaomi/yunluo/* ~/twrp/device/xiaomi/yunluo/
+          echo "=== Device tree contents ==="
+          ls -la ~/twrp/device/xiaomi/yunluo/
+          echo "=== AndroidProducts.mk ==="
+          cat ~/twrp/device/xiaomi/yunluo/AndroidProducts.mk
 
       - name: Build TWRP
         run: |
           cd ~/twrp
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
+          echo "=== Available products ==="
+          print_lunch_menu 2>&1 | head -30
           lunch twrp_yunluo-eng
           mka recoveryimage
 
