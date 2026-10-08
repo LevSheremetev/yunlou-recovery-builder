@@ -1,3 +1,5 @@
+TARGET_PREBUILT_KERNEL := device/xiaomi/yunluo/prebuilt/kernel
+BOARD_PREBUILT_DTBOIMAGE := device/xiaomi/yunluo/prebuilt/dtb.img
 TARGET_ARCH := arm64
 TARGET_ARCH_VARIANT := armv8-a
 TARGET_CPU_ABI := arm64-v8a
