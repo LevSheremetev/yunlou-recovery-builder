@@ -48,8 +48,6 @@ jobs:
           cp -r $GITHUB_WORKSPACE/device/xiaomi/yunluo/* ~/twrp/device/xiaomi/yunluo/
           echo "=== Device tree contents ==="
           ls -la ~/twrp/device/xiaomi/yunluo/
-          echo "=== AndroidProducts.mk ==="
-          cat ~/twrp/device/xiaomi/yunluo/AndroidProducts.mk
 
       - name: Build TWRP
         run: |

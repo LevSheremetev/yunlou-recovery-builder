@@ -1,0 +1,3 @@
+add_lunch_combo twrp_yunluo-eng
+add_lunch_combo twrp_yunluo-userdebug
+add_lunch_combo twrp_yunluo-user
