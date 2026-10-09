@@ -40,3 +40,4 @@ AB_OTA_PARTITIONS := \
     vbmeta_system \
     vbmeta_vendor
 BOARD_USES_RECOVERY_AS_BOOT := true
+TW_USE_SYMLINKS := false
