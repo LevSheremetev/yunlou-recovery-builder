@@ -50,6 +50,13 @@ jobs:
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -c -j4 --no-clone-bundle --no-tags
 
+      - name: Patch TWRP to skip vendor symlink
+        run: |
+          cd ~/twrp
+          sed -i 's|--exclude=sdcard|--exclude=sdcard --exclude=vendor --exclude=odm|g' bootable/recovery/prebuilt/Android.mk
+          echo "=== Patched lines ==="
+          grep -n "exclude=vendor" bootable/recovery/prebuilt/Android.mk || echo "PATCH FAILED"
+
       - name: Copy Device Tree
         run: |
           rm -rf ~/twrp/device/xiaomi/yunluo
@@ -64,13 +71,13 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka bootimage recoveryimage -j2
+          mka recoveryimage -j2
           echo "=== BUILD FINISHED ==="
-          echo "=== Files in out/target/product/yunluo/ ==="
           find ~/twrp/out/target/product/yunluo -maxdepth 1 -name "*.img" -exec ls -la {} + 2>&1
 
       - name: Upload TWRP Image
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Boot-Image
+          name: TWRP-Image
           path: ~/twrp/out/target/product/yunluo/*.img
+          if-no-files-found: warn
