@@ -39,7 +39,7 @@ jobs:
           mkdir ~/twrp
           cd ~/twrp
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-14.1
-          repo sync -c -j8 --no-clone-bundle --no-tags
+          repo sync -c -j4 --no-clone-bundle --no-tags
 
       - name: Copy Device Tree
         run: |
@@ -48,8 +48,6 @@ jobs:
           cp -r $GITHUB_WORKSPACE/device/xiaomi/yunluo/* ~/twrp/device/xiaomi/yunluo/
           echo "=== Device tree files ==="
           ls -la ~/twrp/device/xiaomi/yunluo/
-          echo "=== Checking TWRP vendor ==="
-          ls -la ~/twrp/vendor/twrp/config/ || echo "TWRP vendor missing!"
 
       - name: Build TWRP
         run: |
@@ -60,9 +58,8 @@ jobs:
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=ap2a
           echo "=== TARGET_PRODUCT: $TARGET_PRODUCT ==="
-          echo "=== TARGET_BUILD_VARIANT: $TARGET_BUILD_VARIANT ==="
           echo "=== TARGET_RELEASE: $TARGET_RELEASE ==="
-          mka recoveryimage
+          mka recoveryimage -j2
 
       - name: Upload TWRP Image
         uses: actions/upload-artifact@v4
