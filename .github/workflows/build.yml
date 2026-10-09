@@ -29,7 +29,9 @@ jobs:
 
       - name: Add Swap Space
         run: |
-          sudo fallocate -l 16G /swapfile
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          sudo dd if=/dev/zero of=/swapfile bs=1M count=8192 status=progress
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
