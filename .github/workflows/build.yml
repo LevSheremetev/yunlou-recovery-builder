@@ -35,7 +35,6 @@ jobs:
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
-          free -h
 
       - name: Install Repo Tool & Make
         run: |
@@ -56,7 +55,6 @@ jobs:
           rm -rf ~/twrp/device/xiaomi/yunluo
           mkdir -p ~/twrp/device/xiaomi/yunluo
           cp -r $GITHUB_WORKSPACE/device/xiaomi/yunluo/* ~/twrp/device/xiaomi/yunluo/
-          ls -la ~/twrp/device/xiaomi/yunluo/
 
       - name: Build TWRP
         run: |
@@ -66,14 +64,13 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          export _JAVA_OPTIONS="-Xmx3g"
-          export LLVM_PARALLEL_LINK_JOBS=1
-          echo "=== TARGET_PRODUCT: $TARGET_PRODUCT ==="
-          echo "=== TARGET_RELEASE: $TARGET_RELEASE ==="
-          mka recoveryimage -j1
+          mka bootimage -j2
+          echo "=== BUILD FINISHED ==="
+          echo "=== Files in out/target/product/yunluo/ ==="
+          ls -la ~/twrp/out/target/product/yunluo/*.img 2>&1
 
       - name: Upload TWRP Image
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Recovery-Image
-          path: ~/twrp/out/target/product/yunluo/recovery.img
+          name: TWRP-Boot-Image
+          path: ~/twrp/out/target/product/yunluo/*.img
