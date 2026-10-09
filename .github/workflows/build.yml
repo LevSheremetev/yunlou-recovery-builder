@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo swapoff -a || true
           sudo rm -f /swapfile || true
-          sudo dd if=/dev/zero of=/swapfile bs=1M count=8192 status=progress
+          sudo dd if=/dev/zero of=/swapfile bs=1M count=16384 status=progress
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
@@ -48,7 +48,7 @@ jobs:
         run: |
           mkdir ~/twrp
           cd ~/twrp
-          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-14.1
+          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -c -j4 --no-clone-bundle --no-tags
 
       - name: Copy Device Tree
@@ -56,7 +56,6 @@ jobs:
           rm -rf ~/twrp/device/xiaomi/yunluo
           mkdir -p ~/twrp/device/xiaomi/yunluo
           cp -r $GITHUB_WORKSPACE/device/xiaomi/yunluo/* ~/twrp/device/xiaomi/yunluo/
-          echo "=== Device tree files ==="
           ls -la ~/twrp/device/xiaomi/yunluo/
 
       - name: Build TWRP
@@ -66,8 +65,9 @@ jobs:
           export ALLOW_MISSING_DEPENDENCIES=true
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
-          export TARGET_RELEASE=ap2a
-          export _JAVA_OPTIONS="-Xmx4g"
+          export TARGET_RELEASE=sc
+          export _JAVA_OPTIONS="-Xmx3g"
+          export LLVM_PARALLEL_LINK_JOBS=1
           echo "=== TARGET_PRODUCT: $TARGET_PRODUCT ==="
           echo "=== TARGET_RELEASE: $TARGET_RELEASE ==="
           mka recoveryimage -j1
