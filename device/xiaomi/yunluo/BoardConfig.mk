@@ -28,3 +28,14 @@ BOARD_PREBUILT_DTBOIMAGE := device/xiaomi/yunluo/prebuilt/dtb.img
 AB_OTA_UPDATER := true
 TARGET_OTA_ASSERT_DEVICE := yunluo
 TARGET_DEVICE := yunluo
+AB_OTA_PARTITIONS := \
+    boot \
+    dtbo \
+    product \
+    system \
+    system_ext \
+    vendor \
+    vendor_boot \
+    vbmeta \
+    vbmeta_system \
+    vbmeta_vendor
