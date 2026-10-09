@@ -54,8 +54,6 @@ jobs:
         run: |
           cd ~/twrp
           sed -i 's|--exclude=sdcard|--exclude=sdcard --exclude=vendor --exclude=odm|g' bootable/recovery/prebuilt/Android.mk
-          echo "=== Patched lines ==="
-          grep -n "exclude=vendor" bootable/recovery/prebuilt/Android.mk || echo "PATCH FAILED"
 
       - name: Copy Device Tree
         run: |
@@ -73,11 +71,20 @@ jobs:
           export TARGET_RELEASE=sc
           mka recoveryimage -j2
           echo "=== BUILD FINISHED ==="
-          find ~/twrp/out/target/product/yunluo -maxdepth 1 -name "*.img" -exec ls -la {} + 2>&1
+          echo "=== FILES IN out/target/product/yunluo/ ==="
+          ls -la ~/twrp/out/target/product/yunluo/ 2>&1 | head -50
+          echo "=== ALL .img FILES ==="
+          find ~/twrp/out/target/product/yunluo -name "*.img" -exec ls -la {} + 2>&1 | head -30
+          echo "=== ALL .zip FILES ==="
+          find ~/twrp/out/target/product/yunluo -name "*.zip" -exec ls -la {} + 2>&1 | head -30
+          echo "=== vendor_boot and boot ==="
+          find ~/twrp/out/target/product/yunluo -name "*boot*" -exec ls -la {} + 2>&1 | head -30
 
-      - name: Upload TWRP Image
+      - name: Upload All Files
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Image
-          path: ~/twrp/out/target/product/yunluo/*.img
+          name: TWRP-Output
+          path: |
+            ~/twrp/out/target/product/yunluo/*.img
+            ~/twrp/out/target/product/yunluo/*.zip
           if-no-files-found: warn
