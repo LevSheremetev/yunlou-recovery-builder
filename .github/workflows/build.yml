@@ -64,10 +64,10 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka bootimage -j2
+          mka bootimage recoveryimage -j2
           echo "=== BUILD FINISHED ==="
           echo "=== Files in out/target/product/yunluo/ ==="
-          ls -la ~/twrp/out/target/product/yunluo/*.img 2>&1
+          find ~/twrp/out/target/product/yunluo -maxdepth 1 -name "*.img" -exec ls -la {} + 2>&1
 
       - name: Upload TWRP Image
         uses: actions/upload-artifact@v4
