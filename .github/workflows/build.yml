@@ -69,16 +69,14 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka recoveryimage -j2
+          mka recoveryimage bootimage vendorbootimage -j2 || true
           echo "=== BUILD FINISHED ==="
-          echo "=== FILES IN out/target/product/yunluo/ ==="
-          ls -la ~/twrp/out/target/product/yunluo/ 2>&1 | head -50
           echo "=== ALL .img FILES ==="
-          find ~/twrp/out/target/product/yunluo -name "*.img" -exec ls -la {} + 2>&1 | head -30
+          find ~/twrp/out/target/product/yunluo -name "*.img" -exec ls -la {} + 2>&1
           echo "=== ALL .zip FILES ==="
-          find ~/twrp/out/target/product/yunluo -name "*.zip" -exec ls -la {} + 2>&1 | head -30
-          echo "=== vendor_boot and boot ==="
-          find ~/twrp/out/target/product/yunluo -name "*boot*" -exec ls -la {} + 2>&1 | head -30
+          find ~/twrp/out/target/product/yunluo -name "*.zip" -exec ls -la {} + 2>&1
+          echo "=== out/target/product/yunluo/ contents ==="
+          ls -la ~/twrp/out/target/product/yunluo/ 2>&1
 
       - name: Upload All Files
         uses: actions/upload-artifact@v4
