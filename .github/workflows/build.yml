@@ -54,7 +54,6 @@ jobs:
         run: |
           cd ~/twrp
           sed -i 's|rsync -a|rsync -a --exclude=vendor|g' bootable/recovery/prebuilt/Android.mk
-          echo "=== Patch check ==="
           grep -n "exclude=vendor" bootable/recovery/prebuilt/Android.mk || echo "PATCH NOT APPLIED"
 
       - name: Copy Device Tree
@@ -71,13 +70,16 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka recoveryimage -j2
+          mka bootimage -j2
           echo "=== BUILD FINISHED ==="
-          find ~/twrp/out/target/product/yunluo -maxdepth 1 -name "*.img" -exec ls -la {} + 2>&1
+          echo "=== Searching for .img files ==="
+          find ~/twrp/out/target/product/yunluo -name "*.img" -exec ls -la {} + 2>&1
+          echo "=== Full listing ==="
+          ls -la ~/twrp/out/target/product/yunluo/ 2>&1
 
-      - name: Upload Images
+      - name: Upload All Images
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Output
-          path: ~/twrp/out/target/product/yunluo/*.img
+          name: TWRP-Boot
+          path: ~/twrp/out/target/product/yunluo/**/*.img
           if-no-files-found: warn
