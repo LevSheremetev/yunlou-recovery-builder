@@ -69,7 +69,7 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka vendorbootimage -j2 || true
+          mka bootimage -j2
           echo "=== BUILD FINISHED ==="
           echo "=== ALL .img FILES in out/target/product/yunluo/ ==="
           find ~/twrp/out/target/product/yunluo -maxdepth 1 -name "*.img" -exec ls -la {} + 2>&1
