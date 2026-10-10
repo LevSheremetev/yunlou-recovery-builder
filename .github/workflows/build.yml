@@ -50,11 +50,20 @@ jobs:
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -c -j4 --no-clone-bundle --no-tags
 
-      - name: Patch TWRP to skip vendor symlink
+      - name: Patch TWRP rsync (multiple attempts)
         run: |
           cd ~/twrp
-          sed -i 's|rsync -a|rsync -a --exclude=vendor|g' bootable/recovery/prebuilt/Android.mk
-          grep -n "exclude=vendor" bootable/recovery/prebuilt/Android.mk || echo "PATCH NOT APPLIED"
+          FILE=bootable/recovery/prebuilt/Android.mk
+          echo "=== Original rsync lines ==="
+          grep -n "rsync" $FILE || echo "No rsync found"
+          # Заменяем ВСЕ вхождения rsync -a на rsync -a --exclude=vendor --exclude=odm
+          sed -i 's/rsync -a/rsync -a --exclude=vendor --exclude=odm/g' $FILE
+          # Дополнительно заменяем на случай другого синтаксиса
+          sed -i 's/rsync \-a/rsync -a --exclude=vendor --exclude=odm/g' $FILE
+          echo "=== Patched rsync lines ==="
+          grep -n "rsync" $FILE
+          echo "=== Verify exclude=vendor ==="
+          grep -c "exclude=vendor" $FILE
 
       - name: Copy Device Tree
         run: |
@@ -70,16 +79,15 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka bootimage -j2
+          mka recoveryimage -j2
           echo "=== BUILD FINISHED ==="
-          echo "=== Searching for .img files ==="
-          find ~/twrp/out/target/product/yunluo -name "*.img" -exec ls -la {} + 2>&1
-          echo "=== Full listing ==="
-          ls -la ~/twrp/out/target/product/yunluo/ 2>&1
+          find ~/twrp/out/target/product/yunluo -maxdepth 2 -name "*.img" -exec ls -la {} + 2>&1
 
-      - name: Upload All Images
+      - name: Upload Images
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Boot
-          path: ~/twrp/out/target/product/yunluo/**/*.img
+          name: TWRP-Output
+          path: |
+            ~/twrp/out/target/product/yunluo/*.img
+            ~/twrp/out/target/product/yunluo/**/*.img
           if-no-files-found: warn
