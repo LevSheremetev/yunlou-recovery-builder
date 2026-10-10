@@ -53,7 +53,9 @@ jobs:
       - name: Patch TWRP to skip vendor symlink
         run: |
           cd ~/twrp
-          sed -i 's|--exclude=sdcard|--exclude=sdcard --exclude=vendor --exclude=odm|g' bootable/recovery/prebuilt/Android.mk
+          sed -i 's|rsync -a|rsync -a --exclude=vendor|g' bootable/recovery/prebuilt/Android.mk
+          echo "=== Patch check ==="
+          grep -n "exclude=vendor" bootable/recovery/prebuilt/Android.mk || echo "PATCH NOT APPLIED"
 
       - name: Copy Device Tree
         run: |
@@ -69,16 +71,13 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka bootimage -j2
+          mka recoveryimage -j2
           echo "=== BUILD FINISHED ==="
-          echo "=== ALL .img FILES in out/target/product/yunluo/ ==="
           find ~/twrp/out/target/product/yunluo -maxdepth 1 -name "*.img" -exec ls -la {} + 2>&1
-          echo "=== What is in out/target/product/yunluo/ ==="
-          ls -la ~/twrp/out/target/product/yunluo/ 2>&1
 
-      - name: Upload All Images
+      - name: Upload Images
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Final
+          name: TWRP-Output
           path: ~/twrp/out/target/product/yunluo/*.img
           if-no-files-found: warn
