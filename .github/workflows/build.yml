@@ -69,20 +69,16 @@ jobs:
           export TARGET_PRODUCT=twrp_yunluo
           export TARGET_BUILD_VARIANT=eng
           export TARGET_RELEASE=sc
-          mka recoveryimage bootimage vendorbootimage -j2 || true
+          mka vendorbootimage -j2 || true
           echo "=== BUILD FINISHED ==="
-          echo "=== ALL .img FILES ==="
-          find ~/twrp/out/target/product/yunluo -name "*.img" -exec ls -la {} + 2>&1
-          echo "=== ALL .zip FILES ==="
-          find ~/twrp/out/target/product/yunluo -name "*.zip" -exec ls -la {} + 2>&1
-          echo "=== out/target/product/yunluo/ contents ==="
+          echo "=== ALL .img FILES in out/target/product/yunluo/ ==="
+          find ~/twrp/out/target/product/yunluo -maxdepth 1 -name "*.img" -exec ls -la {} + 2>&1
+          echo "=== What is in out/target/product/yunluo/ ==="
           ls -la ~/twrp/out/target/product/yunluo/ 2>&1
 
-      - name: Upload All Files
+      - name: Upload All Images
         uses: actions/upload-artifact@v4
         with:
-          name: TWRP-Output
-          path: |
-            ~/twrp/out/target/product/yunluo/*.img
-            ~/twrp/out/target/product/yunluo/*.zip
+          name: TWRP-Final
+          path: ~/twrp/out/target/product/yunluo/*.img
           if-no-files-found: warn
