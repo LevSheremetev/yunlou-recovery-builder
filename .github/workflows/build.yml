@@ -50,20 +50,23 @@ jobs:
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -c -j4 --no-clone-bundle --no-tags
 
-      - name: Patch TWRP rsync (multiple attempts)
+      - name: Find and patch rsync in all .mk and Makefiles
         run: |
           cd ~/twrp
-          FILE=bootable/recovery/prebuilt/Android.mk
-          echo "=== Original rsync lines ==="
-          grep -n "rsync" $FILE || echo "No rsync found"
-          # Заменяем ВСЕ вхождения rsync -a на rsync -a --exclude=vendor --exclude=odm
-          sed -i 's/rsync -a/rsync -a --exclude=vendor --exclude=odm/g' $FILE
-          # Дополнительно заменяем на случай другого синтаксиса
-          sed -i 's/rsync \-a/rsync -a --exclude=vendor --exclude=odm/g' $FILE
-          echo "=== Patched rsync lines ==="
-          grep -n "rsync" $FILE
-          echo "=== Verify exclude=vendor ==="
-          grep -c "exclude=vendor" $FILE
+          echo "=== Searching for files with 'exclude=sdcard' ==="
+          grep -rl "exclude=sdcard" --include="*.mk" --include="Makefile" --include="*.make" . 2>/dev/null | tee /tmp/files_to_patch.txt
+          echo "=== Files found: ==="
+          cat /tmp/files_to_patch.txt
+          if [ ! -s /tmp/files_to_patch.txt ]; then
+            echo "!!! WARNING: No files with 'exclude=sdcard' found !!!"
+            grep -rl "rsync" --include="*.mk" --include="Makefile" . 2>/dev/null | head -20
+          fi
+          while read f; do
+            sed -i 's|--exclude=sdcard|--exclude=sdcard --exclude=vendor --exclude=odm --exclude=product|g' "$f"
+            echo "Patched: $f"
+          done < /tmp/files_to_patch.txt
+          echo "=== Verifying patch ==="
+          grep -rn "exclude=vendor" --include="*.mk" --include="Makefile" . 2>/dev/null | head -5
 
       - name: Copy Device Tree
         run: |
